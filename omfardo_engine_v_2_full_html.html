@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Omfardo Draw v2</title>
+<style>
+body{margin:0;background:#0e0d0c;color:#e8e0d5;font-family:monospace;overflow:hidden}
+#ui{position:fixed;top:10px;left:10px;background:#1a1918;padding:10px;border:1px solid #333}
+label{display:block;font-size:12px;margin-top:6px}
+button{margin-top:6px;background:#222;color:#eee;border:none;padding:4px 6px;cursor:pointer}
+canvas{display:block}
+</style>
+</head>
+<body>
+<div id="ui">
+  <label>Preset
+    <select id="preset">
+      <option value="raw">raw</option>
+      <option value="decay">decay</option>
+      <option value="glitch">glitch</option>
+      <option value="void">void</option>
+    </select>
+  </label>
+  <button onclick="ruin()">Ruin (R)</button>
+  <button onclick="clearCanvas()">Clear</button>
+</div>
+<canvas id="c"></canvas>
+<script>
+const canvas=document.getElementById("c");
+const ctx=canvas.getContext("2d");
+let W=window.innerWidth;
+let H=window.innerHeight;
+canvas.width=W;canvas.height=H;
+
+let drawing=false;
+let px=0,py=0;
+
+let memory=[];
+
+const S={
+ size:8,
+ color:"#c8a96e",
+ opacity:1,
+ noise:0.5,
+ glitch:0.1,
+ decay:0.1,
+ symmetry:false
+};
+
+// PRESETS
+function applyPreset(p){
+  if(p==="raw"){
+    S.noise=0.2;S.glitch=0.02;S.decay=0.02;
+  }
+  if(p==="decay"){
+    S.noise=0.5;S.glitch=0.05;S.decay=0.2;
+  }
+  if(p==="glitch"){
+    S.noise=0.3;S.glitch=0.2;S.decay=0.05;
+  }
+  if(p==="void"){
+    S.noise=0.9;S.glitch=0.3;S.decay=0.3;
+  }
+}
+
+document.getElementById("preset").onchange=e=>applyPreset(e.target.value);
+
+// ENGINE
+function applyNoise(s){
+  s.x+=(Math.random()-0.5)*S.size*S.noise;
+  s.y+=(Math.random()-0.5)*S.size*S.noise;
+  return s;
+}
+
+function applyGlitch(s){
+  if(Math.random()<S.glitch){
+    s.x+=Math.random()*20-10;
+    s.y+=Math.random()*20-10;
+    s.alpha*=0.4;
+  }
+  return s;
+}
+
+function applyDecay(s){
+  s.alpha*=1-S.decay*0.1;
+  return s;
+}
+
+function aiWarp(s){
+  if(memory.length<10)return s;
+  const m=memory[Math.floor(Math.random()*memory.length)];
+  if(Math.random()<0.15){
+    s.x+=(m.x-s.x)*0.3;
+    s.y+=(m.y-s.y)*0.3;
+  }
+  return s;
+}
+
+function renderStroke(s){
+  ctx.globalAlpha=s.alpha;
+  ctx.strokeStyle=s.color;
+  ctx.lineWidth=s.size;
+  ctx.lineCap="round";
+  ctx.beginPath();
+  ctx.moveTo(s.px,s.py);
+  ctx.lineTo(s.x,s.y);
+  ctx.stroke();
+}
+
+function renderWithSymmetry(s){
+  renderStroke(s);
+  if(!S.symmetry)return;
+  let sx={...s,x:W-s.x,px:W-s.px};
+  sx.x+=(Math.random()-0.5)*5;
+  sx.y+=(Math.random()-0.5)*5;
+  renderStroke(sx);
+}
+
+function ghost(s){
+  if(Math.random()<0.1){
+    ctx.globalAlpha=0.05;
+    ctx.beginPath();
+    ctx.moveTo(s.px+10,s.py+10);
+    ctx.lineTo(s.x+10,s.y+10);
+    ctx.stroke();
+  }
+}
+
+function processStroke(x,y,px,py){
+  let s={x,y,px,py,size:S.size,color:S.color,alpha:S.opacity};
+  s=applyNoise(s);
+  s=applyGlitch(s);
+  s=applyDecay(s);
+  s=aiWarp(s);
+
+  renderWithSymmetry(s);
+  ghost(s);
+
+  memory.push({x:s.x,y:s.y});
+  if(memory.length>200)memory.shift();
+}
+
+canvas.onmousedown=e=>{
+ drawing=true;
+ px=e.clientX;
+ py=e.clientY;
+};
+
+canvas.onmousemove=e=>{
+ if(!drawing)return;
+ processStroke(e.clientX,e.clientY,px,py);
+ px=e.clientX;
+ py=e.clientY;
+};
+
+canvas.onmouseup=()=>drawing=false;
+canvas.onmouseleave=()=>drawing=false;
+
+function ruin(){
+ for(let i=0;i<3000;i++){
+  const x=Math.random()*W;
+  const y=Math.random()*H;
+  ctx.globalAlpha=0.03;
+  ctx.fillStyle="#000";
+  ctx.fillRect(x,y,2,2);
+ }
+}
+
+function clearCanvas(){
+ ctx.fillStyle="#faf8f4";
+ ctx.fillRect(0,0,W,H);
+}
+
+document.addEventListener("keydown",e=>{
+ if(e.key==="r")ruin();
+ if(e.key==="x")S.symmetry=!S.symmetry;
+});
+
+// INIT
+clearCanvas();
+applyPreset("raw");
+</script>
+</body>
+</html>
